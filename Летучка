@@ -3,7 +3,7 @@
 mtcars
 head(mtcars)
 cor(mtcars$hp, mtcars$mpg)
-cor.test(mtcars$hp, mtcars$mpg) # p-value = 1.788e-07, принимаем альтернативную гипотезу, что коэффициент корреляции равен нулю;
+cor.test(mtcars$hp, mtcars$mpg) # p-value = 1.788e-07, принимаем альтернативную гипотезу, что коэффициент корреляции не равен нулю;
 
 # Иллюстрация
 library(ggplot2)
