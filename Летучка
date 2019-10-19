@@ -2,7 +2,7 @@
 
 mtcars
 head(mtcars)
-cor(mtcars$hp, mtcars$mpg)
+cor(mtcars$hp, mtcars$mpg) # коэффициент корреляции равен -0.7761684
 cor.test(mtcars$hp, mtcars$mpg) # p-value = 1.788e-07, отклоняем нулевую, принимаем альтернативную гипотезу, что коэффициент корреляции достоверно отличается от нуля;
 1.788e-07 < 0.05 # TRUE
 
