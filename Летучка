@@ -1,0 +1,24 @@
+# Задание 1
+
+mtcars
+head(mtcars)
+cor(mtcars$hp, mtcars$mpg)
+cor.test(mtcars$hp, mtcars$mpg) # p-value = 1.788e-07, не можем отклонить нулевую гипотезу, что коэффициент корреляции равен нулю;
+
+# Иллюстрация
+library(ggplot2)
+ggplot(mtcars, aes(hp,mpg))+geom_point()+geom_smooth(method = "lm")
+
+#Нменого графиков
+library(corrplot)
+library(ggplot2)
+corrplot(cor(mtcars))
+heatmap(x = cor(mtcars), symm = TRUE)
+
+
+
+# Задание 2
+var() # считает дисперсию
+library(dplyr)
+mtcars %>% group_by(cyl) %>% summarise(var(hp)) # наибольшая дисперсия у cyl = 8
+result <- as.data.frame(mtcars %>% group_by(cyl) %>% summarise(var(hp)))
