@@ -1,0 +1,242 @@
+---
+title: "Отчет по проекту_1. Предобработка данных"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### 0. Организационная часть
+Для работы необходима установка дополнительных пакетов. Сделать это можно следующим образом:
+
+```
+install.packages("plyr")
+install.packages("readr")
+install.packages("dplyr")
+install.packages("nortest")
+install.packages("ggplo2")
+install.packages("coin")
+install.packages("jmuOutlier")
+install.packages("car")
+```
+Чтобы подгрузить установленные пакеты, исполним:
+```{r, echo = T, eval = T, include = T, message = F}
+library(plyr)
+library(readr)
+library(dplyr)
+library(nortest)
+library(ggplot2)
+library(coin)
+library(jmuOutlier)
+library(car)
+```
+Также необходимо задать путь для рабочей директории, содержащей распакованные файлы для работы над проектом:
+```{r, echo = T, eval = T, include = T}
+setwd("/home/yulia/Rcourse/data/Data/")
+```
+### 1. Объединение данных в единую таблицу
+
+Мною была написана пользовательская функция **load_unite_csv**, которая подгружает csv файлы и объединяет их в один датафрейм:
+```{r, echo = T, eval = T, include = T}
+load_unite_csv <- function(path){
+  mydir <- getwd()
+  myfiles <- list.files(path=mydir, pattern = "*.csv", full.names = TRUE)
+  dat_csv <- ldply(myfiles, read_csv)
+}
+```
+Эта функция требует на вход путь до папки с csv файлами и объединяет их в единый датафрейм.
+В нашем случае очень удобно в качестве пути использовать заранее установленную рабочую директорию.  
+Применим функцию нашим данным:
+```{r, echo = T, eval = T, include = T, message = F}
+full_df <- load_unite_csv(path = getwd())
+```
+### 2. Первый взгляд на данные
+Посмотрим на структуру наших данных:
+```{r, echo = T, eval = T, include = T}
+str(full_df)
+```
+Замечаем, что параметры *Rings*, *Sex*, *~~Rock-n-roll~~* *Length* в датафрейме явдляются character type, а не num... Это странно, поэтому было необходимо выяснить, а какие значения бывают у этих параметров:  
+Для *Rings*:
+```{r, echo = F, eval = T, include = T}
+unique(full_df$Rings)
+```
+Для *Sex*:
+```{r, echo = F, eval = T, include = T}
+unique(full_df$`Sex (1 – male, 2 – female, 3 – uvenil)`)
+```
+Для *Length*:
+  ```{r, echo = F, eval = T, include = T}
+tail(unique(full_df$Length))
+```
+Замечаем совершеннейшее безобразие, которое случилось во время занесения студентами данных в поле. Устраняем безоборазие:
+```{r, echo = T, eval = T, include = T, warning = F}
+full_df$Rings <- revalue(full_df$Rings, c("nine" = "9"))
+full_df$`Sex (1 – male, 2 – female, 3 – uvenil)` <-
+  revalue(full_df$`Sex (1 – male, 2 – female, 3 – uvenil)`, c("three" = "3", "one" = "1", "male" = "1"))
+full_df$Length <- revalue(full_df$Length, c("No data! I forgot to mesure it!(" = "NA"))
+```
+Продолжаем наводить порядок. Делаем *Rings* и *Length* числовыми переменными, поскольку идеологически они являются таковыми:
+```{r, echo = T, eval = T, include = T, warning = F}
+full_df <- full_df %>% mutate(Rings = as.numeric(Rings), Length = as.numeric(Length))
+```
+Переименовываем параметр Sex и сделаем его фактором, как ему и положено (заодно устраняем опечатку в слове "juvenil":
+```{r, echo = T, eval = T, include = T}
+full_df$`Sex (1 – male, 2 – female, 3 – uvenil)` <- 
+  factor(full_df$`Sex (1 – male, 2 – female, 3 – uvenil)`, 
+         levels = c("1", "2", "3"),
+          labels = c("male", "female", "juvenil"))
+colnames(full_df)[2] <- "Sex"
+```
+Ура! Наши данные почти готовы к обработке!
+Для начала нужно проверить, есть ли в нашем датафрейме пропущенные значения и сколько их:
+```{r, set-options, echo = T, eval = T, include = T}
+options(width = 100)
+sum(colSums(is.na(full_df)))
+```
+В нашем датафрейме **`r sum(colSums(is.na(full_df)))`** пропущенных значений.  
+Мы можем посмотреть на них поближе:
+```{r, echo = T, eval = T, include = T}
+full_df[!complete.cases(full_df), ]
+```
+Что же нам с ними делать?  
+Существует практика замены NA на среднее значение, однако для параметра Sex такое вовсе не предоставляется возможным, представитель раздельнополых видов моллюсков же не может быть немножко мальчиком и немножко девочкой в норме!  
+В нашем датафрейме количество NA составляет меньше процента от всех наблюдений, поэтому в данном случае их можно просто исключить из анализа:
+```{r, echo = T, eval = T, include = T}
+final_df <- full_df[complete.cases(full_df), ]
+```
+### 3. Расчет среднего значения и стандартного отклонения переменной Length для моллюсков разного пола
+```{r, echo = T, eval = T, include = T}
+final_df %>% group_by(Sex) %>% summarise(mean(Length), sd(Length))
+```
+### 4. Расчет доли моллюсков с Heigth не больше 0.165 (в процентах)
+```{r, echo = T, eval = T, include = T}
+height_less_0.166 <- nrow(final_df %>% filter(Height < 0.166))/nrow(final_df)*100
+```
+Процент моллюсков с высотой не более 0.165 равен **`r height_less_0.166`**.
+
+### 5. Расчет Значения переменной Length, которое выше, чем у 92% от всех наблюдений
+```{r, echo = T, eval = T, include = T}
+quantile(final_df$Length, probs = 0.92)
+```
+Значение равно **`r quantile(final_df$Length, probs = 0.92)`**.
+
+### 6. Значения переменной Length после Z-стандартизации, записанные в переменую Lenght_z_scores
+```{r, echo = T, eval = T, include = T}
+Lenght_z_scores <- scale(final_df$Length)
+```
+
+### 7. Сравнение между собой диамеметров моллюсков с числом колец 5 и 15
+Сначала нужно проверить, нормально ли распределение диаметров моллюсков.  
+Посмотрим на них глазами:
+```{r, echo = T, eval = T, include = T}
+ggplot(final_df, aes(sample = Diameter)) + geom_qq(color = "grey") + geom_qq_line(color = "blue") +
+  labs(x = "Theoretical", y = "Sample", title = "Quantile-quantile graph for Diameter values") +
+  theme_minimal()
+```
+
+Как-то это не очень похоже на нормальное распределение...  
+Проводим тест Шапиро-Уилка на нормальность распределения:
+```{r, echo = T, eval = T, include = T}
+norm_test_1 <- shapiro.test(full_df$Diameter)
+norm_test_1
+```
+Значение p-value `r norm_test_1$p.value` < 0.05, принимаем альтернативную гипотезу о том, что случайная величина распределена ненормально.  
+На самом деле лучше использовать тест Колмогорова-Смирнова в модифиации Lilliefors, его мы тоже проведем:
+```{r, echo = T, eval = T, include = T}
+norm_test_2 <- lillie.test(full_df$Diameter)
+norm_test_2
+```
+Значение p-value `r norm_test_2$p.value` < 0.05, принимаем альтернативную гипотезу о том, что случайная величина распределена ненормально.  
+Думаем, что нам делать с этой информацией. А пока посмотрим на наши данные на графике:
+```{r, echo = T, eval = T, include = T, message = F}
+ggplot(final_df, aes(x = Diameter)) + 
+  geom_histogram(col = "grey", fill = "pink", alpha = 0.7) + 
+  theme_minimal() + 
+  labs(x = "Diameter", y = "Number of observations", title = "Distribution of Diameter values")
+```
+
+Также посмотрим на плотность распределения признака Diameter для моллюсков с Rings равным 5 и 15:
+```{r, echo = T, eval = T, include = T, message = F}
+local_df <- final_df %>% filter(Rings == 5 | Rings == 15) %>% select(Diameter, Rings)
+ggplot(local_df, aes(x = Diameter, fill = factor(Rings))) + 
+  geom_density(alpha = 0.5, color = "grey") + 
+  labs(x = "Diameter", y = "Number of rings") + 
+  scale_fill_discrete(name="Number of rings") +
+  ggtitle("Diameter density for snails with Rings = 5 and Rings = 15") +
+  scale_color_brewer(palette = "Accent")
+```
+Возвращаемся к нашим баранам. Поскольку наше распределение признака выглядит как не очень нормальное, то нужно использовать непараметрический критерий Уилкоксона, но можно и t-test, т.к это не противоречит условию его применимости (большой объем выборки ИЛИ нормальное распределение). Поскольку данный проект является учебным, то интересно провести оба анализа.  
+  
+Сначала важно сформулировать нулевую и альтернативную гипотезы!  
+*H~0~*: моллюски с числом колец 5 и 15 имеют одинаковый диаметр.  
+*H~1~*: моллюски с числом колец 5 и 15 имеют разный диаметр.
+  
+#### Расчитываем критерий Уилкоксона:
+```{r, echo = T, eval = T, include = T}
+test_1_wilcox <- wilcox.test(Diameter ~ Rings, data = local_df, subset = Rings %in% c(5, 15))
+test_1_wilcox 
+```
+**Вывод**: диаметр статистически значимо отличается у моллюсков с числом колец 5 и 15 (p-value `r test_1_wilcox$p.value` < 0.05).
+  
+Теперь разбираемся с t-критерием. В большинстве случаев рекомендуется делать двухвыборочный t-test, поскольку очень редко мы можем знать наверняка "вектор различий" между двумя группами (по этой причине двухвыборочные тесты являются более строгими). Однако в данном примере логично обратиться к биологической чуйке и предположить, что при большом числе колец диаметр моллюска будет явно больше, а не меньше. Но любопытства ради можно посчитать и одновыборочный, и двухвыборочный t-test.  
+ 
+  
+#### Одновыборочный t-test:  
+*H~0~*: моллюски с числом колец 5 и 15 имеют одинаковый диаметр.  
+*H~1~*: моллюски с числом колец 5 имеют меньший диаметр, чем моллюски с 15 кольцами.
+```{r, echo = T, eval = T, include = T}
+test_2_ttest <- t.test(local_df$Diameter)
+test_2_ttest
+```
+**Вывод**: диаметры моллюсков с числом колец 5 меньше, чем диаметры моллюсков с числом колец 15 (p-value `r test_2_ttest$p.value` < 0.05).
+  
+  
+#### Двухвыборочный t-test:
+*H~0~*: моллюски с числом колец 5 и 15 имеют одинаковый диаметр.  
+*H~1~*: моллюски с числом колец 5 b 14 имеют разные диаметры.
+```{r, echo = T, eval = T, include = T}
+test_3_ttest <- t.test(local_df$Diameter ~ local_df$Rings)
+test_3_ttest
+```
+**Вывод**: диаметр статистически значимо отличается у моллюсков с числом колец 5 и 15 (p-value `r test_3_ttest$p.value` < 0.05).
+
+### 8. Проверка взаимосвязи переменной Diameter и Whole_weigth
+Опять же сначала посмотрим глазками:
+```{r, echo = T, eval = T, include = T}
+ggplot(data = final_df, aes(x = Diameter, y = Whole_weight)) + 
+  geom_point(color = "grey") + theme_minimal() +
+  labs(x = 'Diameter', y = 'Whole weigth', title = 'Relationship of variables Diameter and Whole weigth')
+```
+
+Выглядит как повод изучать взаимосвязь более подробно!  
+Зависимость диаметра от веса однозначно есть, но она степенная, а не линейная.  
+С учетом нелинейной составляющей взаимосвязи и ненормальности распределения значений диаметра, использовать коэффициент корреляции Пирсона будет некорректным.  
+  
+Расчитаем коэффициент корреляции Спирмана!  
+*H~0~*: коэффициент корреляции равен нулю.
+*H~1~*: коэффициент корреляции значимо отличается от нуля.
+```{r, echo = T, eval = T, include = T, message = T}
+cor_test <- cor.test(final_df$Diameter, final_df$Whole_weight, method = "spearman")
+cor_test
+```
+Коэффициент корреляции статистически значимо отличается от нуля (p-value `r cor_test$p.value` < 0.05).  
+
+Все хорошо, но для ранговых коэффициентов существует проблема совпадающих рангов, что приводит к приблизительной оценке коэффициента корреляции и уровня значимости. Как это лечится?  
+Достоверность корреляции можно оценить пермутационным методом! (А еще какой-то асимптотический тест...)  
+```{r, echo = T, eval = T, include = T, message = T}
+perm_test <- perm.cor.test(final_df$Diameter, final_df$Whole_weight, "two.sided", "spearman" )
+add_test <- spearman_test(final_df$Whole_weight ~ final_df$Diameter)
+add_test
+perm_test
+```
+
+### 9. Свежий взгляд со стороны
+Проведем разведочный анализ данных:
+```{r, echo = T, eval = T, include = T, message = T}
+pairs(final_df)
+```
+  
+Что можно сказать?  
+Есть явно какие-то зависимости между возрастом и весовыми метриками... (можно исследовать, меньше ли весят ювенили).  
+Есть какая-то зависимость между весовыми метриками как таковыми (что логично, улитки-то пропорциональными должны быть).  
+Честно говоря, не знаю, за что хвататься...
