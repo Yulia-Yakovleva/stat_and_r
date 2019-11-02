@@ -6,8 +6,8 @@ test_df_pearson <- data.frame(Xagr = c(24, 27, 26, 21, 20, 31, 26, 22, 20, 18, 3
 
 # пишем функцию
 cor_pearson <- function(my_df){
-  x <- as.vector(test_df_pearson[,1])
-  y <- as.vector(test_df_pearson[,2])
+  x <- as.vector(my_df[,1])
+  y <- as.vector(my_df[,2])
   devX <- x - mean(x)
   devY <- y - mean(y)
   sum_sqrt_devX = sum(devX^2)
@@ -33,8 +33,8 @@ test_df_spearman <- data.frame(Xiq = c(100, 118, 112, 97, 99, 103, 102, 132, 122
                                Yx = c(154, 123, 120, 213, 200, 187, 155, 100, 114, 115, 107, 176, 143, 111))
 # пишем функцию
 cor_spearman <- function(my_df){
-  x <- as.vector(test_df_spearman[,1])
-  y <- as.vector(test_df_spearman[,2])
+  x <- as.vector(my_df[,1])
+  y <- as.vector(my_df[,2])
   sum_sqrt_q <- sum((rank(x) - rank(y))^2)
   N <- length(x)
   final_formula <- (1 - ((6 * sum_sqrt_q)/(N*(N^2-1))))
